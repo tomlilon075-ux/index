@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cloudflare Pages Uploader</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f7fb;
+      margin: 0;
+      padding: 40px;
+    }
+
+    .container {
+      max-width: 850px;
+      margin: auto;
+      background: white;
+      border-radius: 16px;
+      padding: 35px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    }
+
+    h1 {
+      margin-bottom: 8px;
+      color: #111827;
+    }
+
+    .subtitle {
+      color: #6b7280;
+      margin-bottom: 30px;
+    }
+
+    .section {
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 25px;
+      margin-bottom: 25px;
+    }
+
+    .section h2 {
+      margin-top: 0;
+      font-size: 20px;
+      color: #1f2937;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #374151;
+    }
+
+    input,
+    select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 13px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      margin-bottom: 18px;
+      font-size: 15px;
+      background: white;
+    }
+
+    .upload-box {
+      border: 2px dashed #f97316;
+      border-radius: 14px;
+      padding: 35px;
+      text-align: center;
+      background: #fff7ed;
+      margin-bottom: 20px;
+    }
+
+    button {
+      background: #f97316;
+      color: white;
+      border: none;
+      padding: 15px 24px;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    button:disabled {
+      background: #fdba74;
+      cursor: not-allowed;
+    }
+
+    button:hover:not(:disabled) {
+      background: #ea580c;
+    }
+
+    .result {
+      margin-top: 25px;
+      padding: 18px;
+      background: #ecfdf5;
+      border: 1px solid #10b981;
+      border-radius: 12px;
+      color: #065f46;
+      display: none;
+    }
+
+    .result.error {
+      background: #fef2f2;
+      border-color: #ef4444;
+      color: #991b1b;
+    }
+
+    .result.pending {
+      background: #eff6ff;
+      border-color: #3b82f6;
+      color: #1e40af;
+    }
+
+    .result a {
+      color: inherit;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Cloudflare Pages Uploader</h1>
+    <p class="subtitle">Upload an HTML file or ZIP and deploy it to Cloudflare Pages.</p>
+
+    <form>
+      <div class="section">
+        <h2>Cloudflare Authentication</h2>
+
+        <label>Cloudflare Account ID</label>
+        <input name="accountId" type="text" placeholder="Enter Cloudflare Account ID" required>
+
+        <label>Authentication Type</label>
+        <select name="authType">
+          <option value="token">API Token</option>
+          <option value="global">Global API Key</option>
+        </select>
+
+        <label>Cloudflare Account Email</label>
+        <input name="accountEmail" type="email" placeholder="Required only for Global API Key">
+
+        <label>Cloudflare API Token / Global API Key</label>
+        <input name="apiToken" type="password" placeholder="Enter Cloudflare credential" required>
+
+        <label>Project Name</label>
+        <input name="projectName" type="text" placeholder="example: my-landing-page" required>
+      </div>
+
+      <div class="section">
+        <h2>Upload Website Files</h2>
+
+        <div class="upload-box">
+          <p><strong>Upload ZIP or HTML File</strong></p>
+          <p>Upload your HTML file or HTML/CSS/JS website ZIP file</p>
+          <input name="siteFile" type="file" accept=".zip,.html" required>
+        </div>
+      </div>
+
+      <button type="submit">Deploy to Cloudflare Pages</button>
+
+      <div class="result"></div>
+    </form>
+  </div>
+
+  <script>
+    const form = document.querySelector("form");
+    const button = document.querySelector("button[type='submit']");
+    const result = document.querySelector(".result");
+
+    function showResult(content, state = "success") {
+      result.replaceChildren(content);
+      result.classList.toggle("error", state === "error");
+      result.classList.toggle("pending", state === "pending");
+      result.style.display = "block";
+    }
+
+    function textNode(message) {
+      const wrapper = document.createElement("div");
+      wrapper.textContent = message;
+      return wrapper;
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      button.disabled = true;
+      button.textContent = "Deploying...";
+      showResult(textNode("Uploading and deploying to Cloudflare Pages..."), "pending");
+
+      try {
+        const response = await fetch("/deploy", {
+          method: "POST",
+          body: new FormData(form)
+        });
+
+        const payload = await response.json();
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error || "Deployment failed.");
+        }
+
+        const wrapper = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = "Website deployed successfully:";
+        const link = document.createElement("a");
+        link.href = payload.url;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = payload.url;
+        wrapper.append(title, document.createElement("br"), link);
+
+        if (payload.deploymentId) {
+          const id = document.createElement("div");
+          id.textContent = "Deployment ID: " + payload.deploymentId;
+          wrapper.append(document.createElement("br"), id);
+        }
+
+        showResult(wrapper);
+      } catch (error) {
+        showResult(textNode(error.message), "error");
+      } finally {
+        button.disabled = false;
+        button.textContent = "Deploy to Cloudflare Pages";
+      }
+    });
+  </script>
+</body>
+</html>
